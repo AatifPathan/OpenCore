@@ -8,12 +8,15 @@ const OAuth = {
 
     login() {
 
+        const scopes = 'api refresh_token id';
+
         const authUrl =
             window.OPENCORE_SF_URL +
             '/services/oauth2/authorize' +
             '?response_type=token' +
             '&client_id=' + encodeURIComponent(this.clientId) +
-            '&redirect_uri=' + encodeURIComponent(this.redirectUri);
+            '&redirect_uri=' + encodeURIComponent(this.redirectUri) +
+            '&scope=' + encodeURIComponent(scopes);
 
         window.location.href = authUrl;
 
@@ -34,6 +37,9 @@ const OAuth = {
         if (token) {
 
             OcApi.Auth.setToken(token);
+
+            // Remove the token from the URL
+            history.replaceState({}, '', 'callback.html');
 
             window.location.href = 'dashboard.html';
 
