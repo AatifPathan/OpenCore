@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Repository Details · OpenCore</title>
+<link rel="stylesheet" href="assets/css/style.css">
+<link rel="stylesheet" href="assets/css/components.css">
+<link rel="stylesheet" href="assets/css/dashboard.css">
+<link rel="stylesheet" href="assets/css/responsive.css">
+<link rel="stylesheet" href="assets/css/enhancements.css">
+</head>
+<body>
+
+<div class="app-shell">
+  <div id="sidebarMount"></div>
+  <div class="main-content">
+    <div id="topbarMount"></div>
+
+    <!-- Page skeleton shown while data loads -->
+    <main class="page-content" id="pageRoot" aria-live="polite">
+      <div id="pageSkeletons">
+        <div style="display:flex;gap:16px;margin-bottom:20px">
+          <div class="skeleton" style="height:28px;width:180px;border-radius:8px"></div>
+          <div class="skeleton" style="height:28px;width:80px;border-radius:99px"></div>
+        </div>
+        <div class="skeleton skeleton-text" style="width:480px;margin-bottom:28px"></div>
+        <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:16px;margin-bottom:24px">
+          <div class="kpi-card"><div class="skeleton skeleton-title" style="width:55%;margin-bottom:8px"></div><div class="skeleton skeleton-text" style="width:70%"></div></div>
+          <div class="kpi-card"><div class="skeleton skeleton-title" style="width:55%;margin-bottom:8px"></div><div class="skeleton skeleton-text" style="width:70%"></div></div>
+          <div class="kpi-card"><div class="skeleton skeleton-title" style="width:55%;margin-bottom:8px"></div><div class="skeleton skeleton-text" style="width:70%"></div></div>
+          <div class="kpi-card"><div class="skeleton skeleton-title" style="width:55%;margin-bottom:8px"></div><div class="skeleton skeleton-text" style="width:70%"></div></div>
+          <div class="kpi-card"><div class="skeleton skeleton-title" style="width:55%;margin-bottom:8px"></div><div class="skeleton skeleton-text" style="width:70%"></div></div>
+        </div>
+        <div class="skeleton" style="height:400px;border-radius:12px"></div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<!-- ── Script load order is important ── -->
+<script src="assets/js/utils.js"></script>
+<script src="assets/js/layout.js"></script>
+<script src="assets/js/app.js"></script>
+<script src="assets/js/api/api.js"></script>
+<script src="assets/js/api/repositoryApi.js"></script>
+<script src="assets/js/api/otherApis.js"></script>
+<script src="assets/js/components/ui-components.js"></script>
+<script src="assets/js/services/githubSync.js"></script>
+
+<script>
+/* ============================================================
+   Repository Details Page Controller
+   All data flows through RepositoryApi — never direct fetches.
+   ============================================================ */
+(async function initRepositoryDetails() {
+  'use strict';
+
+  const repoId = getQueryParam('id') || 'repo-3';
+
+  // Mount shell with placeholder breadcrumb while loading
+  mountLayout('repositories.html', { breadcrumb: ['OpenCore', 'Repositories', '…'] });
+
+  /* ── Load all data in parallel ── */
+  let repo, issues, contributors, activity;
+  try {
+    [repo, { records: issues }, { records: contributors }, activity] = await Promise.all([
+      RepositoryApi.getRepository(repoId),
+      RepositoryApi.getRepositoryIssues(repoId),
+      RepositoryApi.getRepositoryContributors(repoId),
+      RepositoryApi.getRepositoryActivity(repoId),
+    ]);
+  } catch (err) {
+    document.getElementById('pageSkeletons').remove();
+    ErrorState.render(document.getElementById('pageRoot'), {
+      title: 'Failed to load repository',
+      message: err.message,
+      code: err.errorCode,
+      onRetry: () => window.location.reload(),
+    });
+    return;
+  }
+
+  // Update breadcrumb now we have the repo name
+  mountLayout('repositories.html', { breadcrumb: ['OpenCore', 'Repositories', repo.name] });
+
+  /* ── Remove skeletons, render page ── */
+  document.getElementById('pageSkeletons').remove();
+  renderPage(repo, issues, contributors, activity.records);
+})();
+
+/* ──────────────────────────────────────────────────────────
+   RENDER FUNCTIONS
+   ────────────────────────────────────────────────────────── */
+function renderPage(repo, issues, contributors, activityItems) {
+  const root = document.getElementById('pageRoot');
+
+  root.innerHTML = `
+    <!-- ── Hero header ── -->
+    <div class="repo-detail-hero">
+      <div class="repo-detail-hero-top">
+        <div style="min-width:0">
+          <div class="repo-detail-meta">
+            <span class="text-sm text-muted">${escapeHTML(repo.org)}</span>
+            <span class="text-muted">/</span>
+            <h1 style="font-size:22px;font-weight:700;letter-spacing:-.3px">${escapeHTML(repo.name)}</h1>
+            <span class="badge ${repo.visibility === 'Public' ? 'badge-neutral' : 'badge-warning'}">${repo.visibility}</span>
+            ${GitHubSyncService.renderHealthBadge(repo.healthScore)}
+            <span class="badge-github-live" id="liveSyncBadge">
+              <span class="live-dot"></span> Live Sync
+            </span>
+          </div>
+          <p class="page-subtitle mt-8" style="max-width:640px">${escapeHTML(repo.description)}</p>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">
+            ${repo.tags.map(t => `<span class="tag">${escapeHTML(t)}</span>`).join('')}
+          </div>
+        </div>
+
+        <div class="repo-detail-actions">
+          <button class="btn btn-secondary" id="watchBtn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            Watch
+          </button>
+          <button class="btn btn-secondary" id="starBtn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+            Star
+          </button>
+          <a href="${escapeHTML(repo.githubUrl || '#')}" target="_blank" rel="noopener" class="btn btn-secondary">
+            <svg viewBox="0 0 24 24" fill="currentColor" width="15" height="15"><path d="M12 .3a12 12 0 0 0-3.8 23.4c.6.1.8-.3.8-.6v-2.2c-3.3.7-4-1.6-4-1.6-.6-1.4-1.4-1.8-1.4-1.8-1.1-.8.1-.7.1-.7 1.2.1 1.9 1.3 1.9 1.3 1.1 1.8 2.8 1.3 3.5 1 .1-.8.4-1.3.7-1.6-2.7-.3-5.5-1.3-5.5-5.9 0-1.3.5-2.4 1.3-3.2-.1-.3-.6-1.6.1-3.2 0 0 1-.3 3.4 1.2 1-.3 2-.4 3-.4s2 .1 3 .4c2.4-1.6 3.4-1.2 3.4-1.2.7 1.6.2 2.9.1 3.2.8.8 1.3 1.9 1.3 3.2 0 4.6-2.8 5.6-5.5 5.9.4.4.8 1.1.8 2.2v3.3c0 .3.2.7.8.6A12 12 0 0 0 12 .3z"/></svg>
+            GitHub
+          </a>
+          <button class="btn btn-primary" id="applyBtn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+            Apply to Contribute
+          </button>
+        </div>
+      </div>
+
+      <!-- ── Sync section ── -->
+      <div class="repo-detail-sync-section">
+        <div>
+          <div id="syncStatusBar">${GitHubSyncService.renderSyncStatusBar(RepositoryApi.getSyncState(repo.id))}</div>
+        </div>
+        <div id="syncBtnMount"></div>
+      </div>
+    </div>
+
+    <!-- ── KPI row ── -->
+    <div class="kpi-grid" id="kpiGrid" style="grid-template-columns:repeat(5,1fr);margin-bottom:24px">
+      ${renderKPIs(repo)}
+    </div>
+
+    <!-- ── Tabs card ── -->
+    <div class="card">
+      <div class="tabs">
+        <div class="tab-item active" data-tab="tab-overview">Overview</div>
+        <div class="tab-item" data-tab="tab-issues">
+          Issues
+          <span class="badge badge-neutral" style="margin-left:4px">${issues.length}</span>
+        </div>
+        <div class="tab-item" data-tab="tab-contributors">Contributors</div>
+        <div class="tab-item" data-tab="tab-activity">Activity</div>
+      </div>
+      <div class="tab-content">
+        <div class="tab-panel active" id="tab-overview">${renderOverviewTab(repo)}</div>
+        <div class="tab-panel" id="tab-issues">${renderIssuesTab(issues)}</div>
+        <div class="tab-panel" id="tab-contributors">${renderContributorsTab(contributors)}</div>
+        <div class="tab-panel" id="tab-activity">${renderActivityTab(activityItems)}</div>
+      </div>
+    </div>
+  `;
+
+  /* ── Mount sync button (self-contained component) ── */
+  const syncBtn = GitHubSyncService.createSyncButton(repo.id, (refreshedRepo) => {
+    // After successful sync: refresh KPI cards and status bar
+    document.getElementById('kpiGrid').innerHTML = renderKPIs(refreshedRepo);
+    document.getElementById('syncStatusBar').innerHTML =
+      GitHubSyncService.renderSyncStatusBar(RepositoryApi.getSyncState(repo.id));
+    // Update health badge
+    const healthBadge = document.querySelector('.health-badge');
+    if (healthBadge) {
+      const newHealth = RepositoryApi.getSyncState(repo.id).healthScore;
+      healthBadge.outerHTML = GitHubSyncService.renderHealthBadge(newHealth);
+    }
+  });
+  document.getElementById('syncBtnMount').appendChild(syncBtn);
+
+  /* ── Wire other buttons ── */
+  document.getElementById('watchBtn').addEventListener('click', () =>
+    Toast.success('Watching repository', `You'll be notified about activity in ${repo.name}.`)
+  );
+  document.getElementById('starBtn').addEventListener('click', () =>
+    Toast.success('Starred', `${repo.name} added to your starred repositories.`)
+  );
+  document.getElementById('applyBtn').addEventListener('click', () => {
+    Modal.open({
+      title: `Apply to contribute — ${repo.name}`,
+      body: `
+        <p class="text-secondary mb-16">Tell maintainers why you're a good fit for this repository.</p>
+        <div class="form-group">
+          <label class="form-label">Relevant experience</label>
+          <textarea class="form-control" rows="4" placeholder="Describe your experience with ${escapeHTML(repo.language)} and related technologies…"></textarea>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Which issues interest you?</label>
+          <input class="form-control" type="text" placeholder="e.g. #42, #91">
+        </div>
+      `,
+      actions: [
+        { label: 'Cancel',           type: 'secondary', closeOnClick: true },
+        { label: 'Submit Application', type: 'primary',
+          onClick: () => Toast.success('Application submitted', `Your application to ${repo.name} has been sent for review.`),
+          closeOnClick: true },
+      ],
+    });
+  });
+
+  // Re-initialise tabs (layout.js initShell handles this but we re-render DOM)
+  initTabs();
+}
+
+/* ── KPI cards ── */
+function renderKPIs(repo) {
+  return [
+    { label: 'Stars',        value: formatCompact(repo.stars),      color: 'blue',   icon: '<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>' },
+    { label: 'Forks',        value: formatCompact(repo.forks),      color: 'green',  icon: '<circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M6 9v6"/><path d="M18 9a9 9 0 0 1-9 9"/><circle cx="18" cy="6" r="3"/>' },
+    { label: 'Watchers',     value: formatCompact(repo.watchers),   color: 'purple', icon: '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>' },
+    { label: 'Open Issues',  value: repo.openIssues,                color: 'orange', icon: '<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>' },
+    { label: 'Language',     value: repo.language,                  color: 'blue',   isLang: true },
+  ].map(k => `
+    <div class="kpi-card ${k.color}">
+      ${k.isLang
+        ? `<div class="kpi-value" style="font-size:17px;margin-bottom:4px">${languageTag(k.value)}</div>`
+        : `<div class="kpi-value">${k.value}</div>`}
+      <div class="kpi-label">${k.label}</div>
+    </div>
+  `).join('');
+}
+
+/* ── Overview tab ── */
+function renderOverviewTab(repo) {
+  return `
+    <div class="card-body">
+      <div class="dashboard-grid">
+        <div class="col-2">
+          <h3 class="card-title mb-12">About this repository</h3>
+          <p class="text-secondary" style="line-height:1.75">
+            ${escapeHTML(repo.description)} This project welcomes contributions from developers of all experience
+            levels — from documentation fixes to core architecture work. Maintainers actively triage issues
+            weekly and provide mentorship for first-time contributors.
+          </p>
+          <div class="mt-24">
+            <h3 class="card-title mb-12">Topics</h3>
+            <div class="repo-card-tags">${repo.tags.map(t => `<span class="tag">${escapeHTML(t)}</span>`).join('')}</div>
+          </div>
+        </div>
+        <div class="col-1">
+          <h3 class="card-title mb-12">Details</h3>
+          <div class="flex flex-col gap-12 text-sm">
+            <div class="flex justify-between"><span class="text-muted">Difficulty</span>${difficultyBadge(repo.difficulty)}</div>
+            <div class="flex justify-between"><span class="text-muted">Status</span>
+              <span class="badge ${repo.status === 'Active' ? 'badge-success' : 'badge-neutral'}">${repo.status}</span></div>
+            <div class="flex justify-between"><span class="text-muted">Organization</span><span class="font-medium">${escapeHTML(repo.org)}</span></div>
+            <div class="flex justify-between"><span class="text-muted">License</span><span class="font-medium">Apache 2.0</span></div>
+            <div class="flex justify-between"><span class="text-muted">Health Score</span>${GitHubSyncService.renderHealthBadge(repo.healthScore)}</div>
+            <div class="flex justify-between"><span class="text-muted">GitHub</span>
+              <a href="${escapeHTML(repo.githubUrl || '#')}" class="text-primary-color font-medium text-sm" target="_blank" rel="noopener">View on GitHub ↗</a></div>
+          </div>
+        </div>
+      </div>
+    </div>`;
+}
+
+/* ── Issues tab ── */
+function renderIssuesTab(issues) {
+  if (!issues.length) return `
+    <div class="empty-state">
+      <div class="empty-state-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="28" height="28"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div>
+      <div class="empty-state-title">No open issues</div>
+      <div class="empty-state-desc">This repository currently has no open issues. Check back after the next sync.</div>
+    </div>`;
+
+  const STATUS_ICON = {
+    open:        `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>`,
+    'in-progress': `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>`,
+    closed:      `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>`,
+  };
+
+  return issues.map(iss => `
+    <div class="issue-row">
+      <div class="issue-status-icon ${iss.status}">${STATUS_ICON[iss.status] || STATUS_ICON.open}</div>
+      <div class="issue-body">
+        <a href="issues.html" class="issue-title">${escapeHTML(iss.title)}</a>
+        <div class="issue-meta">
+          #${escapeHTML(iss.id)} · opened ${formatDate(iss.createdAt)}
+          ${iss.assignee ? ` · assigned to <strong>${escapeHTML(iss.assignee)}</strong>` : ' · unassigned'}
+        </div>
+        <div class="issue-tags">
+          ${iss.labels.map(l => `<span class="tag">${escapeHTML(l)}</span>`).join('')}
+          ${difficultyBadge(iss.difficulty)}
+        </div>
+      </div>
+      <div class="issue-side">
+        <span class="badge badge-primary">${iss.points} pts</span>
+        <span class="text-xs text-muted">${iss.applicants} applicants</span>
+        <button class="btn btn-sm btn-secondary"
+          onclick="Toast.success('Applied!','Your interest has been recorded.')">Apply</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+/* ── Contributors tab ── */
+function renderContributorsTab(contributors) {
+  return `
+    <div class="card-body contributor-grid" style="grid-template-columns:repeat(3,1fr)">
+      ${contributors.map(c => `
+        <div class="contributor-card" onclick="window.location.href='contributor-profile.html?id=${c.id}'" style="cursor:pointer">
+          <div class="contributor-card-availability ${c.availability}"></div>
+          ${avatarHTML(c.name, 'xl')}
+          <div class="contributor-card-name mt-12">${escapeHTML(c.name)}</div>
+          <div class="contributor-card-rank">${c.rank}</div>
+          <div class="text-xs text-muted mt-4">${c.contributions} contributions</div>
+          <div class="contributor-card-skills mt-8">
+            ${c.skills.slice(0, 2).map(s => `<span class="tag">${escapeHTML(s)}</span>`).join('')}
+          </div>
+        </div>
+      `).join('')}
+    </div>`;
+}
+
+/* ── Activity tab ── */
+function renderActivityTab(items) {
+  return `
+    <div class="card-body">
+      <div class="timeline">
+        ${items.map(item => `
+          <div class="timeline-item">
+            <div class="timeline-dot"></div>
+            <div class="timeline-content">
+              <strong>${escapeHTML(item.actor)}</strong> ${escapeHTML(item.action)}
+              <span class="font-mono text-sm">${escapeHTML(item.detail)}</span>
+            </div>
+            <div class="timeline-time">${timeAgo(item.ts)}</div>
+          </div>
+        `).join('')}
+      </div>
+    </div>`;
+}
+
+/* ── Tab initialisation (re-wire after innerHTML set) ── */
+function initTabs() {
+  document.querySelectorAll('.tabs').forEach(tabGroup => {
+    tabGroup.querySelectorAll('.tab-item').forEach(tab => {
+      tab.addEventListener('click', () => {
+        const panelId = tab.getAttribute('data-tab');
+        tabGroup.querySelectorAll('.tab-item').forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        const content = tabGroup.closest('.card').querySelector('.tab-content');
+        if (content) {
+          content.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+          const panel = document.getElementById(panelId);
+          if (panel) panel.classList.add('active');
+        }
+      });
+    });
+  });
+}
+</script>
+</body>
+</html>

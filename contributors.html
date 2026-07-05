@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Contributors · OpenCore</title>
+<link rel="stylesheet" href="assets/css/style.css">
+<link rel="stylesheet" href="assets/css/components.css">
+<link rel="stylesheet" href="assets/css/dashboard.css">
+<link rel="stylesheet" href="assets/css/responsive.css">
+<link rel="stylesheet" href="assets/css/enhancements.css">
+</head>
+<body>
+
+<div class="app-shell">
+  <div id="sidebarMount"></div>
+
+  <div class="main-content">
+    <div id="topbarMount"></div>
+
+    <main class="page-content">
+      <header class="page-header">
+        <div>
+          <h1 class="page-title">Contributors</h1>
+          <p class="page-subtitle">3,284 contributors actively building open source</p>
+        </div>
+      </header>
+
+      <div class="toolbar">
+        <div class="toolbar-search">
+          <span class="toolbar-search-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></span>
+          <input type="text" id="contribSearch" placeholder="Search contributors or skills...">
+        </div>
+        <button class="filter-btn active" data-avail="all">All</button>
+        <button class="filter-btn" data-avail="available">Available</button>
+        <button class="filter-btn" data-avail="busy">Busy</button>
+        <select class="form-control" id="rankFilter" style="width:auto">
+          <option value="">All ranks</option>
+          <option value="Diamond">Diamond</option>
+          <option value="Platinum">Platinum</option>
+          <option value="Gold">Gold</option>
+          <option value="Silver">Silver</option>
+          <option value="Bronze">Bronze</option>
+        </select>
+      </div>
+
+      <section class="contributor-grid" id="contributorGrid"></section>
+
+      <div class="flex items-center justify-between mt-24">
+        <div class="page-info" id="contribPageInfo"></div>
+        <div class="pagination">
+          <button class="page-btn" disabled><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg></button>
+          <button class="page-btn active">1</button>
+          <button class="page-btn">2</button>
+          <button class="page-btn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg></button>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<script src="assets/js/utils.js"></script>
+<script src="assets/js/layout.js"></script>
+<script src="assets/js/app.js"></script>
+<script src="assets/js/api/api.js"></script>
+<script src="assets/js/api/repositoryApi.js"></script>
+<script src="assets/js/api/otherApis.js"></script>
+<script src="assets/js/components/ui-components.js"></script>
+<script>
+  mountLayout('contributors.html', { breadcrumb: ['OpenCore', 'Contributors'] });
+
+  let availFilter = 'all';
+
+  const RANK_EMOJI = { Diamond: '💎', Platinum: '⭐', Gold: '🥇', Silver: '🥈', Bronze: '🥉' };
+
+<script>
+(async function initContributorsPage() {
+  'use strict';
+  mountLayout('contributors.html', { breadcrumb: ['OpenCore', 'Contributors'] });
+
+  const RANK_EMOJI = { Diamond: '💎', Platinum: '⭐', Gold: '🥇', Silver: '🥈', Bronze: '🥉' };
+  const grid = document.getElementById('contributorGrid');
+
+  // Skeleton cards while loading
+  grid.innerHTML = Array(8).fill(`
+    <div class="contributor-card" aria-busy="true">
+      <div class="skeleton skeleton-circle" style="width:64px;height:64px;margin:0 auto 12px"></div>
+      <div class="skeleton skeleton-title" style="width:60%;margin:0 auto 8px"></div>
+      <div class="skeleton" style="width:70px;height:20px;border-radius:99px;margin:0 auto 14px"></div>
+      <div style="display:flex;justify-content:center;gap:18px;padding:12px 0;border-top:1px solid var(--color-border);border-bottom:1px solid var(--color-border);margin-bottom:12px">
+        <div class="skeleton skeleton-text" style="width:30px"></div>
+        <div class="skeleton skeleton-text" style="width:30px"></div>
+        <div class="skeleton skeleton-text" style="width:30px"></div>
+      </div>
+      <div style="display:flex;gap:6px;justify-content:center">
+        <div class="skeleton" style="width:50px;height:20px;border-radius:4px"></div>
+        <div class="skeleton" style="width:50px;height:20px;border-radius:4px"></div>
+      </div>
+    </div>`).join('');
+
+  let allContributors = [];
+  let availFilter = 'all';
+
+  try {
+    const { records } = await ContributorApi.getContributors();
+    allContributors = records;
+  } catch (err) {
+    ErrorState.render(grid, {
+      title: 'Failed to load contributors',
+      message: err.message,
+      code: err.errorCode,
+      onRetry: () => window.location.reload(),
+    });
+    return;
+  }
+
+  function renderContributors(list) {
+    const info = document.getElementById('contribPageInfo');
+    if (!list.length) {
+      grid.innerHTML = `
+        <div class="empty-state" style="grid-column:1/-1">
+          <div class="empty-state-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
+            </svg>
+          </div>
+          <div class="empty-state-title">No contributors found</div>
+          <div class="empty-state-desc">Adjust your filters or try a different search term.</div>
+        </div>`;
+      if (info) info.textContent = '';
+      return;
+    }
+    grid.innerHTML = list.map(c => `
+      <div class="contributor-card"
+           onclick="window.location.href='contributor-profile.html?id=${escapeHTML(c.id)}'"
+           style="cursor:pointer"
+           role="button"
+           tabindex="0"
+           aria-label="View ${escapeHTML(c.name)}'s profile"
+           onkeydown="if(event.key==='Enter')window.location.href='contributor-profile.html?id=${escapeHTML(c.id)}'">
+        <div class="contributor-card-availability ${escapeHTML(c.availability)}"
+             data-tooltip="${escapeHTML(c.availability.charAt(0).toUpperCase() + c.availability.slice(1))}"></div>
+        ${avatarHTML(c.name, 'xl')}
+        <div class="contributor-card-name mt-12">${escapeHTML(c.name)}</div>
+        <div class="contributor-card-rank">${RANK_EMOJI[c.rank] || '🏅'} ${escapeHTML(c.rank)}</div>
+        <div class="contributor-card-stats">
+          <div>
+            <div class="contributor-stat-value">${formatCompact(c.reputation)}</div>
+            <div class="contributor-stat-label">Reputation</div>
+          </div>
+          <div>
+            <div class="contributor-stat-value">${c.contributions}</div>
+            <div class="contributor-stat-label">Contribs</div>
+          </div>
+          <div>
+            <div class="contributor-stat-value">${c.badges}</div>
+            <div class="contributor-stat-label">Badges</div>
+          </div>
+        </div>
+        <div class="contributor-card-skills">
+          ${c.skills.map(s => `<span class="tag">${escapeHTML(s)}</span>`).join('')}
+        </div>
+      </div>`).join('');
+    if (info) info.textContent = `Showing 1–${list.length} of ${list.length} contributors`;
+  }
+
+  function applyFilters() {
+    const q    = document.getElementById('contribSearch').value.toLowerCase();
+    const rank = document.getElementById('rankFilter').value;
+    const list = allContributors.filter(c => {
+      const matchAvail  = availFilter === 'all' || c.availability === availFilter;
+      const matchRank   = !rank || c.rank === rank;
+      const matchSearch = !q || c.name.toLowerCase().includes(q) ||
+                          c.skills.some(s => s.toLowerCase().includes(q));
+      return matchAvail && matchRank && matchSearch;
+    });
+    renderContributors(list);
+  }
+
+  document.querySelectorAll('.filter-btn[data-avail]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.filter-btn[data-avail]').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      availFilter = btn.getAttribute('data-avail');
+      applyFilters();
+    });
+  });
+  document.getElementById('contribSearch').addEventListener('input', debounce(applyFilters, 220));
+  document.getElementById('rankFilter').addEventListener('change', applyFilters);
+
+  renderContributors(allContributors);
+})();
+</script>
+</body>
+</html>

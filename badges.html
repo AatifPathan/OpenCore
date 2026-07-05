@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Badges · OpenCore</title>
+<link rel="stylesheet" href="assets/css/style.css">
+<link rel="stylesheet" href="assets/css/components.css">
+<link rel="stylesheet" href="assets/css/dashboard.css">
+<link rel="stylesheet" href="assets/css/responsive.css">
+<link rel="stylesheet" href="assets/css/enhancements.css">
+</head>
+<body>
+
+<div class="app-shell">
+  <div id="sidebarMount"></div>
+
+  <div class="main-content">
+    <div id="topbarMount"></div>
+
+    <main class="page-content">
+      <header class="page-header">
+        <div>
+          <h1 class="page-title">Badges</h1>
+          <p class="page-subtitle">Recognition earned through meaningful open-source contributions</p>
+        </div>
+      </header>
+
+      <div class="card mb-24">
+        <div class="card-body flex items-center gap-24" style="flex-wrap:wrap">
+          <div>
+            <div class="stat-number">7<span style="font-size:18px;color:var(--color-text-muted)">/10</span></div>
+            <div class="stat-label">Badges earned</div>
+          </div>
+          <div class="flex-1" style="min-width:200px">
+            <div class="flex justify-between mb-4"><span class="text-sm font-medium">Overall progress</span><span class="text-xs text-muted">70%</span></div>
+            <div class="progress"><div class="progress-bar success" style="width:70%"></div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="toolbar">
+        <button class="filter-btn active" data-tier="all">All</button>
+        <button class="filter-btn" data-tier="earned">Earned</button>
+        <button class="filter-btn" data-tier="locked">Locked</button>
+        <div class="toolbar-spacer"></div>
+        <select class="form-control" id="tierSelect" style="width:auto">
+          <option value="">All tiers</option>
+          <option value="bronze">Bronze</option>
+          <option value="silver">Silver</option>
+          <option value="gold">Gold</option>
+          <option value="platinum">Platinum</option>
+          <option value="diamond">Diamond</option>
+        </select>
+      </div>
+
+      <section class="badge-grid" id="badgeGrid"></section>
+    </main>
+  </div>
+</div>
+
+<script src="assets/js/utils.js"></script>
+<script src="assets/js/layout.js"></script>
+<script src="assets/js/app.js"></script>
+<script src="assets/js/api/api.js"></script>
+<script src="assets/js/api/repositoryApi.js"></script>
+<script src="assets/js/api/otherApis.js"></script>
+<script src="assets/js/components/ui-components.js"></script>
+<script>
+(async function initBadgesPage() {
+  'use strict';
+  mountLayout('badges.html', { breadcrumb: ['OpenCore', 'Badges'] });
+
+  const TIER_BADGE = {
+    bronze:   'badge-warning',
+    silver:   'badge-neutral',
+    gold:     'badge-primary',
+    platinum: 'badge-info',
+    diamond:  'badge-success',
+  };
+
+  const grid = document.getElementById('badgeGrid');
+  let allBadges = [];
+  let earnedFilter = 'all';
+
+  grid.innerHTML = Array(10).fill(`
+    <div class="badge-showcase-card" aria-busy="true">
+      <div class="skeleton skeleton-circle" style="width:64px;height:64px;margin:0 auto 12px"></div>
+      <div class="skeleton skeleton-title" style="width:70%;margin:0 auto 6px"></div>
+      <div class="skeleton skeleton-text" style="width:90%;margin:0 auto 8px"></div>
+      <div class="skeleton" style="width:60px;height:18px;border-radius:99px;margin:0 auto"></div>
+    </div>`).join('');
+
+  try {
+    await OcApi.mockDelay(480);
+    // In production: const { records } = await OcApi.sfRequest('/opencore/badges');
+    allBadges = await OcApi.mockResolve(OpenCoreData.badges);
+  } catch (err) {
+    ErrorState.render(grid, { title: 'Failed to load badges', message: err.message, onRetry: () => window.location.reload() });
+    return;
+  }
+
+  function tierBadge(tier) {
+    const cls = TIER_BADGE[tier] || 'badge-neutral';
+    return `<span class="badge ${cls}">${tier.charAt(0).toUpperCase() + tier.slice(1)}</span>`;
+  }
+
+  function renderBadges() {
+    const tier = document.getElementById('tierSelect').value;
+    const list = allBadges.filter(b => {
+      const matchEarned = earnedFilter === 'all' || (earnedFilter === 'earned' ? b.earned : !b.earned);
+      const matchTier   = !tier || b.tier === tier;
+      return matchEarned && matchTier;
+    });
+
+    if (!list.length) {
+      grid.innerHTML = `
+        <div class="empty-state" style="grid-column:1/-1">
+          <div class="empty-state-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="8" r="6"/><path d="M15.5 13.5 17 22l-5-3-5 3 1.5-8.5"/>
+            </svg>
+          </div>
+          <div class="empty-state-title">No badges found</div>
+          <div class="empty-state-desc">Try a different filter or tier.</div>
+        </div>`;
+      return;
+    }
+
+    grid.innerHTML = list.map(b => `
+      <div class="badge-showcase-card ${!b.earned ? 'locked' : ''}"
+           onclick="showBadgeDetail('${escapeHTML(b.id)}')"
+           role="button" tabindex="0"
+           aria-label="${escapeHTML(b.name)} badge — ${b.earned ? 'earned' : 'locked'}"
+           onkeydown="if(event.key==='Enter')showBadgeDetail('${escapeHTML(b.id)}')">
+        <div class="badge-icon-large">${b.earned ? b.icon : '🔒'}</div>
+        <div class="badge-showcase-name">${escapeHTML(b.name)}</div>
+        <div class="badge-showcase-desc">${escapeHTML(b.desc)}</div>
+        <div class="badge-showcase-tier mt-8">${tierBadge(b.tier)}</div>
+        ${b.earned ? '<div class="badge badge-success mt-4" style="font-size:10px;margin:4px auto 0">✓ Earned</div>' : ''}
+      </div>`).join('');
+  }
+
+  window.showBadgeDetail = function(badgeId) {
+    const badge = allBadges.find(b => b.id === badgeId);
+    if (!badge) return;
+    Modal.open({
+      title: badge.name,
+      body: `
+        <div style="text-align:center;padding:8px 0 20px">
+          <div style="font-size:52px;margin-bottom:12px">${badge.earned ? badge.icon : '🔒'}</div>
+          <p class="text-secondary mb-16">${escapeHTML(badge.desc)}</p>
+          <div style="display:flex;gap:10px;justify-content:center">
+            ${tierBadge(badge.tier)}
+            ${badge.earned ? '<span class="badge badge-success">Earned</span>' : '<span class="badge badge-neutral">Locked</span>'}
+          </div>
+        </div>
+        ${!badge.earned ? `
+          <div style="background:var(--color-surface-alt);border-radius:var(--radius-md);padding:14px;text-align:center">
+            <div class="text-sm font-medium mb-4">How to earn this badge</div>
+            <div class="text-sm text-muted">${escapeHTML(badge.desc)}</div>
+          </div>` : ''}`,
+      actions: [{ label: 'Close', type: 'secondary', closeOnClick: true }],
+      size: 'sm',
+    });
+  };
+
+  document.querySelectorAll('.filter-btn[data-tier]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.filter-btn[data-tier]').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      earnedFilter = btn.getAttribute('data-tier');
+      renderBadges();
+    });
+  });
+  document.getElementById('tierSelect').addEventListener('change', renderBadges);
+
+  renderBadges();
+})();
+</script>
+</body>
+</html>
