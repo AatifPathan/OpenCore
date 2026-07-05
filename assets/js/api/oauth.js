@@ -4,7 +4,7 @@ const OAuth = {
 
     clientId: '3MVG97L7PWbPq6Uzjn3QC0WVmBAib3XV9nSbfd4qU2NTEqakHNncO_GUigNhlhL27aUltCnOcWQFxe5mdEb05',
 
-    redirectUri: 'https://opencoreap.vercel.app/auth/callback.html',
+    redirectUri: 'https://opencoreap.vercel.app/callback.html',
 
     login() {
 
