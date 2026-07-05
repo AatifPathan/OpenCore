@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Contributor Profile · OpenCore</title>
+<link rel="stylesheet" href="assets/css/style.css">
+<link rel="stylesheet" href="assets/css/components.css">
+<link rel="stylesheet" href="assets/css/dashboard.css">
+<link rel="stylesheet" href="assets/css/responsive.css">
+<link rel="stylesheet" href="assets/css/enhancements.css">
+</head>
+<body>
+
+<div class="app-shell">
+  <div id="sidebarMount"></div>
+
+  <div class="main-content">
+    <div id="topbarMount"></div>
+
+    <main class="page-content" id="pageRoot">
+      <div class="skeleton" style="height:200px;border-radius:16px"></div>
+    </main>
+  </div>
+</div>
+
+<script src="assets/js/utils.js"></script>
+<script src="assets/js/layout.js"></script>
+<script src="assets/js/app.js"></script>
+<script src="assets/js/api/api.js"></script>
+<script src="assets/js/api/repositoryApi.js"></script>
+<script src="assets/js/api/otherApis.js"></script>
+<script src="assets/js/components/ui-components.js"></script>
+<script>
+(async function initContributorProfile() {
+  'use strict';
+  const cId = getQueryParam('id') || 'c-3';
+
+  mountLayout('contributors.html', { breadcrumb: ['OpenCore', 'Contributors', '…'] });
+
+  const root = document.getElementById('pageRoot');
+  root.innerHTML = `<div class="skeleton" style="height:220px;border-radius:16px;margin-bottom:20px"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+      <div class="skeleton" style="height:200px;border-radius:12px"></div>
+      <div class="skeleton" style="height:200px;border-radius:12px"></div>
+    </div>`;
+
+  let contributor;
+  try {
+    contributor = await ContributorApi.getContributor(cId);
+  } catch (err) {
+    ErrorState.render(root, {
+      title: 'Contributor not found',
+      message: err.message,
+      onRetry: () => window.location.reload(),
+    });
+    return;
+  }
+
+  mountLayout('contributors.html', { breadcrumb: ['OpenCore', 'Contributors', contributor.name] });
+  const RANK_EMOJI = { Diamond: '💎', Platinum: '⭐', Gold: '🥇', Silver: '🥈', Bronze: '🥉' };
+  // In production these come from dedicated Salesforce endpoints
+  const [allBadges, allRepos] = await Promise.all([
+    OcApi.mockResolve(OpenCoreData.badges),
+    OcApi.mockResolve(OpenCoreData.repositories),
+  ]);
+  const earnedBadges = allBadges.filter(b => b.earned).slice(0, Math.min(contributor.badges, 6));
+  const recentRepos  = allRepos.slice(0, 4);
+
+  document.getElementById('pageRoot').innerHTML = `
+    <div class="profile-header">
+      <div class="profile-cover"></div>
+      <div class="profile-header-content">
+        <div class="profile-avatar-wrap">${avatarHTML(contributor.name, 'xxl')}</div>
+        <div class="profile-info">
+          <div class="profile-name">${contributor.name} <span class="badge badge-primary">${RANK_EMOJI[contributor.rank]} ${contributor.rank}</span></div>
+          <div class="profile-handle">${contributor.handle}</div>
+          <p class="profile-bio">Open-source contributor focused on ${contributor.skills.join(', ')}. Passionate about mentoring new contributors and shipping reliable, well-tested code.</p>
+          <div class="profile-meta-row">
+            <span class="profile-meta-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg> ${contributor.location}</span>
+            <span class="profile-meta-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> Joined ${formatDate(contributor.joined)}</span>
+            <span class="profile-meta-item">
+              <span style="width:8px;height:8px;border-radius:50%;display:inline-block;background:${contributor.availability === 'available' ? 'var(--color-success)' : contributor.availability === 'busy' ? 'var(--color-warning)' : 'var(--color-text-muted)'}"></span>
+              ${contributor.availability.charAt(0).toUpperCase() + contributor.availability.slice(1)}
+            </span>
+          </div>
+        </div>
+        <div class="profile-stats-row">
+          <div class="profile-stat"><div class="profile-stat-value">${formatCompact(contributor.reputation)}</div><div class="profile-stat-label">Reputation</div></div>
+          <div class="profile-stat"><div class="profile-stat-value">${contributor.contributions}</div><div class="profile-stat-label">Contributions</div></div>
+          <div class="profile-stat"><div class="profile-stat-value">${contributor.badges}</div><div class="profile-stat-label">Badges</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="page-actions mb-24" style="justify-content:flex-end">
+      <button class="btn btn-secondary" id="messageBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        Message
+      </button>
+      <button class="btn btn-primary" id="inviteBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>
+        Invite to Project
+      </button>
+    </div>
+
+    <div class="dashboard-grid">
+      <div class="col-2">
+        <div class="card mb-24">
+          <div class="card-header"><div class="card-title">Skills</div></div>
+          <div class="card-body flex flex-wrap gap-8">
+            ${contributor.skills.map(s => `<span class="badge badge-primary">${s}</span>`).join('')}
+            <span class="badge badge-neutral">Git</span>
+            <span class="badge badge-neutral">Code Review</span>
+            <span class="badge badge-neutral">Technical Writing</span>
+          </div>
+        </div>
+
+        <div class="card mb-24">
+          <div class="card-header"><div class="card-title">Recent Contribution Activity</div></div>
+          <div class="card-body">
+            <div class="timeline">
+              <div class="timeline-item"><div class="timeline-dot"></div><div class="timeline-content">Merged pull request <strong>"Optimize groupby performance"</strong> in pandas-core</div><div class="timeline-time">3 days ago</div></div>
+              <div class="timeline-item"><div class="timeline-dot"></div><div class="timeline-content">Earned the <strong>Performance Wizard</strong> badge</div><div class="timeline-time">5 days ago</div></div>
+              <div class="timeline-item"><div class="timeline-dot"></div><div class="timeline-content">Reviewed pull request #4521 in firefox-devtools</div><div class="timeline-time">1 week ago</div></div>
+              <div class="timeline-item"><div class="timeline-dot"></div><div class="timeline-content">Opened issue "Improve test coverage for edge cases"</div><div class="timeline-time">2 weeks ago</div></div>
+              <div class="timeline-item"><div class="timeline-dot"></div><div class="timeline-content">Promoted to <strong>${contributor.rank}</strong> rank</div><div class="timeline-time">3 weeks ago</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-1">
+        <div class="card mb-24">
+          <div class="card-header"><div class="card-title">Earned Badges</div></div>
+          <div class="card-body" style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
+            ${earnedBadges.map(b => `
+              <div style="text-align:center" data-tooltip="${b.desc}">
+                <div class="badge-icon-large" style="width:48px;height:48px;font-size:20px;margin-bottom:6px">${b.icon}</div>
+                <div class="text-xs font-medium">${b.name}</div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header"><div class="card-title">Active Repositories</div></div>
+          <div class="card-body flex flex-col gap-12">
+            ${recentRepos.map(r => `
+              <div class="flex items-center gap-8">
+                <span class="lang-dot lang-${(r.language === 'JavaScript' ? 'js' : r.language === 'Python' ? 'python' : r.language === 'Java' ? 'java' : r.language === 'Go' ? 'go' : r.language === 'C++' ? 'cpp' : 'ts')}"></span>
+                <span class="text-sm font-medium truncate">${r.name}</span>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.getElementById('messageBtn').addEventListener('click', () => Toast.info('Message sent', `Your message to ${contributor.name} has been delivered.`));
+  document.getElementById('inviteBtn').addEventListener('click', () => Toast.success('Invitation sent', `${contributor.name} has been invited to collaborate.`));
+})();
+</script>
+</body>
+</html>

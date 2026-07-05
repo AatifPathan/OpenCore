@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Applications · OpenCore</title>
+<link rel="stylesheet" href="assets/css/style.css">
+<link rel="stylesheet" href="assets/css/components.css">
+<link rel="stylesheet" href="assets/css/dashboard.css">
+<link rel="stylesheet" href="assets/css/responsive.css">
+<link rel="stylesheet" href="assets/css/enhancements.css">
+</head>
+<body>
+
+<div class="app-shell">
+  <div id="sidebarMount"></div>
+
+  <div class="main-content">
+    <div id="topbarMount"></div>
+
+    <main class="page-content">
+      <header class="page-header">
+        <div>
+          <h1 class="page-title">Applications</h1>
+          <p class="page-subtitle">Review contributor applications for open issues</p>
+        </div>
+      </header>
+
+      <div class="toolbar">
+        <button class="filter-btn active" data-status="all">All <span class="filter-count" id="countAll">8</span></button>
+        <button class="filter-btn" data-status="pending">Pending <span class="filter-count" id="countPending">3</span></button>
+        <button class="filter-btn" data-status="approved">Approved</button>
+        <button class="filter-btn" data-status="rejected">Rejected</button>
+        <div class="toolbar-spacer"></div>
+        <div class="toolbar-search" style="max-width:260px">
+          <span class="toolbar-search-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></span>
+          <input type="text" id="appSearch" placeholder="Search applications...">
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="application-row" style="background:var(--color-surface-alt);font-size:12px;font-weight:600;color:var(--color-text-secondary)">
+          <div>Applicant</div><div>Issue</div><div>Skill Match</div><div>Status</div><div>Applied</div><div>Actions</div>
+        </div>
+        <div id="applicationList"></div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<script src="assets/js/utils.js"></script>
+<script src="assets/js/layout.js"></script>
+<script src="assets/js/app.js"></script>
+<script src="assets/js/api/api.js"></script>
+<script src="assets/js/api/repositoryApi.js"></script>
+<script src="assets/js/api/otherApis.js"></script>
+<script src="assets/js/components/ui-components.js"></script>
+<script>
+(async function initApplicationsPage() {
+  'use strict';
+  mountLayout('applications.html', { breadcrumb: ['OpenCore', 'Applications'] });
+
+  const wrap = document.getElementById('applicationList');
+  let allApplications = [];
+  let statusFilter = 'all';
+
+  const STATUS_BADGE = {
+    pending:  '<span class="badge badge-warning">Pending</span>',
+    approved: '<span class="badge badge-success">Approved</span>',
+    rejected: '<span class="badge badge-danger">Rejected</span>',
+  };
+  const matchColor = pct => pct >= 85 ? 'success' : pct >= 60 ? 'warning' : 'danger';
+
+  // Skeleton rows
+  wrap.innerHTML = Array(5).fill(`
+    <div class="application-row" aria-busy="true">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div class="skeleton skeleton-circle" style="width:32px;height:32px;flex-shrink:0"></div>
+        <div class="skeleton skeleton-text" style="width:100px"></div>
+      </div>
+      <div><div class="skeleton skeleton-text" style="width:90%"></div><div class="skeleton skeleton-text" style="width:50%;margin-top:4px"></div></div>
+      <div><div class="skeleton" style="width:80px;height:8px;border-radius:99px"></div></div>
+      <div><div class="skeleton" style="width:70px;height:20px;border-radius:99px"></div></div>
+      <div><div class="skeleton skeleton-text" style="width:70px"></div></div>
+      <div style="display:flex;gap:6px">
+        <div class="skeleton" style="width:30px;height:28px;border-radius:6px"></div>
+        <div class="skeleton" style="width:30px;height:28px;border-radius:6px"></div>
+      </div>
+    </div>`).join('');
+
+  try {
+    const { records } = await ApplicationApi.getApplications();
+    allApplications = records;
+  } catch (err) {
+    ErrorState.render(wrap, {
+      title: 'Failed to load applications',
+      message: err.message,
+      onRetry: () => window.location.reload(),
+    });
+    return;
+  }
+
+  function renderApplications() {
+    const q = document.getElementById('appSearch').value.toLowerCase();
+    const list = allApplications.filter(a => {
+      const matchStatus = statusFilter === 'all' || a.status === statusFilter;
+      const matchSearch = !q || a.applicant.toLowerCase().includes(q) ||
+                          a.issue.toLowerCase().includes(q) || a.repo.toLowerCase().includes(q);
+      return matchStatus && matchSearch;
+    });
+
+    if (!list.length) {
+      wrap.innerHTML = `
+        <div class="empty-state">
+          <div class="empty-state-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/>
+              <path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>
+            </svg>
+          </div>
+          <div class="empty-state-title">No applications found</div>
+          <div class="empty-state-desc">There are no applications matching your current filters.</div>
+        </div>`;
+      return;
+    }
+
+    wrap.innerHTML = list.map(a => `
+      <div class="application-row" data-id="${escapeHTML(a.id)}">
+        <div class="application-applicant">
+          ${avatarHTML(a.applicant, 'sm')}
+          <span class="font-medium truncate">${escapeHTML(a.applicant)}</span>
+        </div>
+        <div class="application-issue">
+          <div class="application-issue-title truncate">${escapeHTML(a.issue)}</div>
+          <div class="application-issue-repo">${escapeHTML(a.repo)}</div>
+        </div>
+        <div>
+          <div class="flex items-center gap-8">
+            <div class="progress" style="width:60px">
+              <div class="progress-bar ${matchColor(a.skillMatch)}" style="width:${a.skillMatch}%"></div>
+            </div>
+            <span class="text-xs font-medium">${a.skillMatch}%</span>
+          </div>
+        </div>
+        <div>${STATUS_BADGE[a.status] || ''}</div>
+        <div class="text-sm text-muted">${formatDate(a.appliedAt)}</div>
+        <div class="flex gap-6">
+          ${a.status === 'pending' ? `
+            <button class="btn btn-sm btn-secondary" onclick="approveApp('${escapeHTML(a.id)}')" data-tooltip="Approve">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="20 6 9 17 4 12"/></svg>
+            </button>
+            <button class="btn btn-sm btn-secondary" onclick="rejectApp('${escapeHTML(a.id)}','${escapeHTML(a.applicant)}')" data-tooltip="Reject">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>` :
+            `<button class="btn btn-sm btn-ghost" disabled>—</button>`}
+        </div>
+      </div>`).join('');
+  }
+
+  window.approveApp = async function(id) {
+    const btn = document.querySelector(`.application-row[data-id="${id}"] button`);
+    if (btn) { btn.disabled = true; btn.innerHTML = '<svg class="oc-spin" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10" stroke-opacity=".2"/><path d="M12 2a10 10 0 0 1 10 10"/></svg>'; }
+    try {
+      await ApplicationApi.updateApplicationStatus(id, 'approved');
+      const app = allApplications.find(a => a.id === id);
+      if (app) app.status = 'approved';
+      renderApplications();
+      Toast.success('Application approved', `${app ? app.applicant : 'Contributor'} has been assigned to the issue.`);
+    } catch (err) {
+      Toast.error('Failed to approve', err.message);
+      if (btn) { btn.disabled = false; btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="20 6 9 17 4 12"/></svg>'; }
+    }
+  };
+
+  window.rejectApp = function(id, name) {
+    Modal.open({
+      title: 'Reject application?',
+      body: `<p class="text-secondary"><strong>${escapeHTML(name)}</strong>'s application will be marked as rejected and they will be notified. This action can be reversed by a maintainer.</p>`,
+      actions: [
+        { label: 'Cancel', type: 'secondary', closeOnClick: true },
+        {
+          label: 'Reject Application', type: 'danger', closeOnClick: true,
+          onClick: async () => {
+            try {
+              await ApplicationApi.updateApplicationStatus(id, 'rejected');
+              const app = allApplications.find(a => a.id === id);
+              if (app) app.status = 'rejected';
+              renderApplications();
+              Toast.error('Application rejected', `${name} has been notified.`);
+            } catch (err) {
+              Toast.error('Failed to reject', err.message);
+            }
+          },
+        },
+      ],
+    });
+  };
+
+  document.querySelectorAll('.filter-btn[data-status]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.filter-btn[data-status]').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      statusFilter = btn.getAttribute('data-status');
+      renderApplications();
+    });
+  });
+  document.getElementById('appSearch').addEventListener('input', debounce(renderApplications, 220));
+
+  renderApplications();
+})();
+</script>
+</body>
+</html>

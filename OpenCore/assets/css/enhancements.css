@@ -1,0 +1,365 @@
+/* ============================================================
+   OpenCore — Enhanced Components CSS
+   Covers: loading overlay, error state, sync UI,
+   GitHub badge, health score, spin animation,
+   collapsible sidebar, improved cards.
+   ============================================================ */
+
+/* ── Spin keyframe (used by toast loading + overlay) ── */
+@keyframes oc-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+.oc-spin { animation: oc-spin 0.85s linear infinite; transform-origin: center; }
+
+/* ══════════════════════════════════════════════════════════
+   GLOBAL LOADING OVERLAY
+   ══════════════════════════════════════════════════════════ */
+#oc-loading-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.55);
+  backdrop-filter: blur(3px);
+  z-index: 9000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+#oc-loading-overlay.active {
+  opacity: 1;
+  pointer-events: all;
+}
+.oc-overlay-inner {
+  background: white;
+  border-radius: var(--radius-xl);
+  padding: 36px 44px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  box-shadow: var(--shadow-xl);
+  min-width: 240px;
+  text-align: center;
+}
+.oc-overlay-spinner svg { animation: oc-spin 0.85s linear infinite; color: var(--color-primary); }
+.oc-overlay-text { font-size: var(--text-md); font-weight: 600; color: var(--color-text-primary); }
+.oc-overlay-sub  { font-size: var(--text-sm); color: var(--color-text-muted); margin-top: -8px; }
+
+/* ══════════════════════════════════════════════════════════
+   ERROR STATE
+   ══════════════════════════════════════════════════════════ */
+.oc-error-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 48px 24px;
+  text-align: center;
+}
+.oc-error-icon {
+  width: 64px; height: 64px;
+  background: var(--color-danger-bg);
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--color-danger);
+  margin-bottom: 16px;
+}
+.oc-error-title   { font-size: var(--text-lg); font-weight: 600; color: var(--color-text-primary); margin-bottom: 8px; }
+.oc-error-message { font-size: var(--text-base); color: var(--color-text-secondary); max-width: 380px; line-height: 1.6; }
+.oc-error-code    { margin-top: 8px; }
+
+/* ══════════════════════════════════════════════════════════
+   GITHUB SYNC BUTTON
+   ══════════════════════════════════════════════════════════ */
+.btn-github-sync {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 18px;
+  border-radius: var(--radius-md);
+  font-size: var(--text-base);
+  font-weight: 600;
+  background: #0F172A;
+  color: white;
+  border: 1px solid #1E293B;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  position: relative;
+  overflow: hidden;
+}
+.btn-github-sync:hover:not(:disabled) {
+  background: #1E293B;
+  box-shadow: 0 2px 8px rgba(0,0,0,.25);
+}
+.btn-github-sync:disabled {
+  opacity: .65;
+  cursor: not-allowed;
+}
+.btn-github-sync svg { flex-shrink: 0; }
+.btn-github-sync .sync-spinner { animation: oc-spin 0.85s linear infinite; }
+
+/* Shimmer sweep on syncing state */
+.btn-github-sync.syncing::after {
+  content: '';
+  position: absolute;
+  top: 0; left: -100%;
+  width: 60%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.12), transparent);
+  animation: syncShimmer 1.2s ease infinite;
+}
+@keyframes syncShimmer {
+  0%   { left: -60%; }
+  100% { left: 140%; }
+}
+
+/* ══════════════════════════════════════════════════════════
+   SYNC STATUS INDICATORS
+   ══════════════════════════════════════════════════════════ */
+.sync-status-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  background: var(--color-surface-alt);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  flex-wrap: wrap;
+}
+.sync-status-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.sync-status-dot.never    { background: var(--color-text-muted); }
+.sync-status-dot.syncing  { background: var(--color-primary); animation: pulse 1.2s ease infinite; }
+.sync-status-dot.success  { background: var(--color-success); }
+.sync-status-dot.error    { background: var(--color-danger); }
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: .5; transform: scale(1.35); }
+}
+
+/* ── GitHub Live Sync badge ── */
+.badge-github-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: #0F172A;
+  color: white;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: var(--radius-full);
+  letter-spacing: .3px;
+}
+.badge-github-live .live-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: #4ADE80;
+  animation: pulse 1.8s ease infinite;
+}
+
+/* ── Repository health badge ── */
+.health-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: var(--radius-full);
+}
+.health-badge.excellent { background: #DCFCE7; color: #15803D; }
+.health-badge.good      { background: #DBEAFE; color: #1D4ED8; }
+.health-badge.fair      { background: var(--color-warning-bg); color: var(--color-warning); }
+.health-badge.poor      { background: var(--color-danger-bg);  color: var(--color-danger); }
+
+/* ── Sync progress bar (inside button or card) ── */
+.sync-progress-track {
+  height: 3px;
+  background: rgba(255,255,255,.2);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+  margin-top: 6px;
+}
+.sync-progress-fill {
+  height: 100%;
+  background: #4ADE80;
+  border-radius: var(--radius-full);
+  width: 0%;
+  transition: width 0.4s ease;
+}
+
+/* ══════════════════════════════════════════════════════════
+   ENHANCED REPOSITORY DETAIL PAGE
+   ══════════════════════════════════════════════════════════ */
+.repo-detail-hero {
+  background: white;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  padding: 28px;
+  box-shadow: var(--shadow-sm);
+  margin-bottom: 20px;
+}
+.repo-detail-hero-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+.repo-detail-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+.repo-detail-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.repo-detail-sync-section {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid var(--color-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.last-synced-info {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+.last-synced-info svg { width: 14px; height: 14px; }
+.last-synced-time { color: var(--color-text-secondary); font-weight: 500; }
+
+/* ══════════════════════════════════════════════════════════
+   ENHANCED TOAST — loading type
+   ══════════════════════════════════════════════════════════ */
+.toast-loading .toast-icon { color: var(--color-primary); }
+.toast-loading .toast-icon svg { animation: oc-spin 0.85s linear infinite; }
+
+/* ══════════════════════════════════════════════════════════
+   COLLAPSIBLE SIDEBAR ENHANCEMENTS
+   ══════════════════════════════════════════════════════════ */
+.sidebar.collapsed {
+  width: 64px;
+}
+.sidebar.collapsed .sidebar-brand,
+.sidebar.collapsed .sidebar-search,
+.sidebar.collapsed .sidebar-section-label,
+.sidebar.collapsed .sidebar-item span,
+.sidebar.collapsed .sidebar-badge,
+.sidebar.collapsed .sidebar-user-info {
+  display: none;
+}
+.sidebar.collapsed .sidebar-item {
+  justify-content: center;
+  padding: 10px;
+}
+.sidebar.collapsed .sidebar-item svg {
+  width: 20px; height: 20px;
+}
+.sidebar.collapsed .sidebar-header {
+  justify-content: center;
+  padding: 18px 8px;
+}
+.sidebar.collapsed .sidebar-user {
+  justify-content: center;
+  padding: 8px;
+}
+.sidebar.collapsed .sidebar-footer {
+  padding: 12px 8px;
+}
+/* Push main content when sidebar collapses */
+.sidebar.collapsed ~ .main-content,
+.app-shell:has(.sidebar.collapsed) .main-content {
+  margin-left: 64px;
+}
+
+/* Sidebar collapse toggle button */
+.sidebar-collapse-btn {
+  position: absolute;
+  top: 50%;
+  right: -12px;
+  transform: translateY(-50%);
+  width: 24px; height: 24px;
+  background: white;
+  border: 1px solid var(--color-border);
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  z-index: calc(var(--z-sidebar) + 1);
+  box-shadow: var(--shadow-sm);
+  color: var(--color-text-muted);
+  transition: all var(--transition-fast);
+}
+.sidebar-collapse-btn:hover { background: var(--color-primary); color: white; border-color: var(--color-primary); }
+.sidebar-collapse-btn svg { width: 12px; height: 12px; transition: transform var(--transition-base); }
+.sidebar.collapsed .sidebar-collapse-btn svg { transform: rotate(180deg); }
+
+/* ══════════════════════════════════════════════════════════
+   INTEGRATION SETTINGS (settings page section)
+   ══════════════════════════════════════════════════════════ */
+.integration-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+  margin-bottom: 12px;
+}
+.integration-card:hover { border-color: var(--color-border-strong); box-shadow: var(--shadow-sm); }
+.integration-icon {
+  width: 44px; height: 44px;
+  border-radius: var(--radius-md);
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  font-size: 20px;
+}
+.integration-icon.sf  { background: #E8F4FF; }
+.integration-icon.gh  { background: #F6F8FA; }
+.integration-info { flex: 1; min-width: 0; }
+.integration-name { font-size: var(--text-base); font-weight: 600; }
+.integration-desc { font-size: var(--text-sm); color: var(--color-text-muted); margin-top: 2px; }
+.integration-status { display: flex; align-items: center; gap: 6px; font-size: var(--text-sm); font-weight: 500; }
+.integration-status.connected    { color: var(--color-success); }
+.integration-status.disconnected { color: var(--color-text-muted); }
+.integration-status.error        { color: var(--color-danger); }
+
+/* ══════════════════════════════════════════════════════════
+   MODAL CLOSING ANIMATION
+   ══════════════════════════════════════════════════════════ */
+@keyframes modalFadeOut {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+.modal-overlay.modal-closing {
+  animation: modalFadeOut 0.2s ease forwards;
+}
+
+/* ══════════════════════════════════════════════════════════
+   RESPONSIVE OVERRIDES FOR NEW COMPONENTS
+   ══════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+  .repo-detail-sync-section { flex-direction: column; align-items: stretch; }
+  .repo-detail-hero-top     { flex-direction: column; }
+  .repo-detail-actions      { width: 100%; }
+  .repo-detail-actions .btn { flex: 1; justify-content: center; }
+  .sidebar.collapsed { transform: translateX(-100%); }
+  .sidebar.collapsed ~ .main-content { margin-left: 0; }
+}

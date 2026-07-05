@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Projects · OpenCore</title>
+<link rel="stylesheet" href="assets/css/style.css">
+<link rel="stylesheet" href="assets/css/components.css">
+<link rel="stylesheet" href="assets/css/dashboard.css">
+<link rel="stylesheet" href="assets/css/responsive.css">
+<link rel="stylesheet" href="assets/css/enhancements.css">
+</head>
+<body>
+
+<div class="app-shell">
+  <div id="sidebarMount"></div>
+
+  <div class="main-content">
+    <div id="topbarMount"></div>
+
+    <main class="page-content">
+      <header class="page-header">
+        <div>
+          <h1 class="page-title">Projects</h1>
+          <p class="page-subtitle">Initiatives organizing related repositories and milestones</p>
+        </div>
+        <div class="page-actions">
+          <button class="btn btn-primary">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            New Project
+          </button>
+        </div>
+      </header>
+
+      <div class="toolbar">
+        <div class="toolbar-search">
+          <span class="toolbar-search-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></span>
+          <input type="text" placeholder="Search projects...">
+        </div>
+        <button class="filter-btn active">All</button>
+        <button class="filter-btn">Active</button>
+        <button class="filter-btn">Completed</button>
+        <button class="filter-btn">On Hold</button>
+      </div>
+
+      <section class="repo-grid" id="projectGrid"></section>
+    </main>
+  </div>
+</div>
+
+<script src="assets/js/utils.js"></script>
+<script src="assets/js/layout.js"></script>
+<script src="assets/js/app.js"></script>
+<script src="assets/js/api/api.js"></script>
+<script src="assets/js/api/repositoryApi.js"></script>
+<script src="assets/js/api/otherApis.js"></script>
+<script src="assets/js/components/ui-components.js"></script>
+<script>
+(async function initProjectsPage() {
+  'use strict';
+  mountLayout('projects.html', { breadcrumb: ['OpenCore', 'Projects'] });
+
+  const STATUS_BADGE = {
+    Active:    '<span class="badge badge-success">Active</span>',
+    Completed: '<span class="badge badge-info">Completed</span>',
+    'On Hold': '<span class="badge badge-warning">On Hold</span>',
+  };
+
+  const MOCK_PROJECTS = [
+    { id:'p-1', name: 'DevTools Modernization',    org: 'Mozilla Foundation',       status: 'Active',    progress: 68,  repos: 4, contributors: 32, deadline: '2026-08-15' },
+    { id:'p-2', name: 'Kafka Connect 4.0',         org: 'Apache Software Foundation',status: 'Active',    progress: 41,  repos: 3, contributors: 18, deadline: '2026-09-01' },
+    { id:'p-3', name: 'Envoy HTTP/3 Rollout',      org: 'CNCF',                     status: 'Active',    progress: 82,  repos: 2, contributors: 14, deadline: '2026-07-20' },
+    { id:'p-4', name: 'Curriculum Refresh 2026',   org: 'FreeCodeCamp',             status: 'Completed', progress: 100, repos: 2, contributors: 26, deadline: '2026-06-01' },
+    { id:'p-5', name: 'Pandas Performance Sprint', org: 'PyData',                   status: 'Active',    progress: 55,  repos: 2, contributors: 21, deadline: '2026-08-30' },
+    { id:'p-6', name: 'Helm Chart Standardization',org: 'CNCF',                     status: 'On Hold',   progress: 23,  repos: 1, contributors: 6,  deadline: '2026-10-12' },
+  ];
+
+  const grid = document.getElementById('projectGrid');
+  let allProjects = [];
+  let statusFilter = 'all';
+
+  // Skeleton cards
+  grid.innerHTML = Array(6).fill(`
+    <div class="project-card" aria-busy="true">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
+        <div style="flex:1"><div class="skeleton skeleton-title" style="width:65%;margin-bottom:6px"></div><div class="skeleton skeleton-text" style="width:40%"></div></div>
+        <div class="skeleton" style="width:60px;height:20px;border-radius:99px"></div>
+      </div>
+      <div class="skeleton skeleton-text" style="width:100%;margin:14px 0 6px"></div>
+      <div class="skeleton" style="height:6px;border-radius:99px;margin-bottom:14px"></div>
+      <div style="display:flex;gap:14px">
+        <div class="skeleton skeleton-text" style="width:60px"></div>
+        <div class="skeleton skeleton-text" style="width:80px"></div>
+        <div class="skeleton skeleton-text" style="width:70px"></div>
+      </div>
+    </div>`).join('');
+
+  try {
+    await OcApi.mockDelay(520);
+    allProjects = MOCK_PROJECTS;
+  } catch (err) {
+    ErrorState.render(grid, { title: 'Failed to load projects', message: err.message, onRetry: () => window.location.reload() });
+    return;
+  }
+
+  function renderProjects(list) {
+    if (!list.length) {
+      grid.innerHTML = `
+        <div class="empty-state" style="grid-column:1/-1">
+          <div class="empty-state-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+            </svg>
+          </div>
+          <div class="empty-state-title">No projects found</div>
+          <div class="empty-state-desc">Try a different status filter.</div>
+        </div>`;
+      return;
+    }
+    grid.innerHTML = list.map(p => `
+      <div class="project-card">
+        <div class="project-card-top">
+          <div>
+            <div class="repo-card-name" style="font-size:16px">${escapeHTML(p.name)}</div>
+            <div class="text-xs text-muted mt-4">${escapeHTML(p.org)}</div>
+          </div>
+          ${STATUS_BADGE[p.status] || ''}
+        </div>
+        <div class="project-progress-wrap">
+          <div class="project-progress-label">
+            <span>Progress</span><span>${p.progress}%</span>
+          </div>
+          <div class="progress">
+            <div class="progress-bar ${p.progress === 100 ? 'success' : ''}" style="width:${p.progress}%"></div>
+          </div>
+        </div>
+        <div class="repo-card-stats" style="border-top:none;padding-top:0">
+          <div class="repo-stat">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+            </svg>${p.repos} repos
+          </div>
+          <div class="repo-stat">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
+            </svg>${p.contributors} contributors
+          </div>
+          <div class="repo-stat">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="4" width="18" height="18" rx="2"/>
+              <line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/>
+              <line x1="3" y1="10" x2="21" y2="10"/>
+            </svg>${formatDate(p.deadline)}
+          </div>
+        </div>
+      </div>`).join('');
+  }
+
+  document.querySelectorAll('.filter-btn[data-status]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.filter-btn[data-status]').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      statusFilter = btn.getAttribute('data-status');
+      const filtered = statusFilter === 'all' ? allProjects : allProjects.filter(p => p.status === statusFilter);
+      renderProjects(filtered);
+    });
+  });
+
+  renderProjects(allProjects);
+})();
+</script>
+</body>
+</html>
