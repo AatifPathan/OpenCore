@@ -19,7 +19,7 @@ const ApiConfig = {
 
   /** Mock mode: when true, all calls resolve against MockData instead of hitting Salesforce.
    *  Flip to false once the Connected App OAuth flow is wired up. */
-  mockMode: true,
+  mockMode: false,
 
   /** Simulated network latency (ms) in mock mode — realistic UX testing */
   mockDelay: 600,
