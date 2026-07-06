@@ -7,17 +7,17 @@ const OAuth = {
     redirectUri: 'https://opencoreap.vercel.app/callback.html',
 
     login() {
-    
+
         const authUrl =
             window.OPENCORE_SF_URL +
             '/services/oauth2/authorize' +
-            '?response_type=token' +
-            '&client_id=' + encodeURIComponent(this.clientId) +
-            '&redirect_uri=' + encodeURIComponent(this.redirectUri);
-    
+            '?response_type=token'
+            + '&client_id=' + encodeURIComponent(this.clientId)
+            + '&redirect_uri=' + encodeURIComponent(this.redirectUri);
+
         window.location.href = authUrl;
-    
-    }
+
+    },
 
     handleCallback() {
 
@@ -34,9 +34,6 @@ const OAuth = {
         if (token) {
 
             OcApi.Auth.setToken(token);
-
-            // Remove the token from the URL
-            history.replaceState({}, '', 'callback.html');
 
             window.location.href = 'dashboard.html';
 
