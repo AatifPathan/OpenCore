@@ -14,7 +14,23 @@
 <h3>Signing you in...</h3>
 
 <script>
-OAuth.handleCallback();
+const hash = new URLSearchParams(window.location.hash.substring(1));
+
+const token = hash.get("access_token");
+const instance = hash.get("instance_url");
+
+console.log("Access Token:", token);
+console.log("Instance URL:", instance);
+
+if (token) {
+    sessionStorage.setItem("oc_sf_access_token", token);
+}
+
+if (instance) {
+    sessionStorage.setItem("oc_sf_instance_url", instance);
+}
+
+window.location.href = "dashboard.html";
 </script>
 
 </body>
