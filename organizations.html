@@ -89,8 +89,8 @@
 
   let allOrgs = [];
   try {
-    const { records } = await OrganizationApi.getOrganizations();
-    allOrgs = records;
+    const response = await OrganizationApi.getOrganizations();
+    allOrgs = response.records || response;
   } catch (err) {
     ErrorState.render(grid, { title: 'Failed to load organizations', message: err.message, code: err.errorCode, onRetry: () => window.location.reload() });
     return;
@@ -129,8 +129,8 @@
   document.getElementById('orgSearch').addEventListener('input', debounce(async (e) => {
     const q = e.target.value.trim();
     try {
-      const { records } = await OrganizationApi.getOrganizations(q ? { query: q } : {});
-      renderOrgs(records);
+    const response = await OrganizationApi.getOrganizations(q ? { query: q } : {});
+    renderOrgs(response.records || response);
     } catch { renderOrgs(allOrgs.filter(o => o.name.toLowerCase().includes(q.toLowerCase()))); }
   }, 250));
 
